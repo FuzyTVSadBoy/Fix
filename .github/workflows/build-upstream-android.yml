@@ -22,11 +22,12 @@ jobs:
           sed -i 's/style.ScaleAllSizes(3.0f);/style.ScaleAllSizes(1.0f);/g' CasioEmuMsvc/Gui/Gui.h || true
 
       # PATCH lỗi CrashHandler
-      - name: Disable CrashHandler for Android
+      - name: Remove CrashHandler (Android fix)
+        run: rm -rf CasioEmuMsvc/CrashHandler
+
+      - name: Patch CMakeLists to remove CrashHandler
         run: |
-          echo "Disabling CrashHandler on Android..."
-          sed -i '1s/^/#ifndef __ANDROID__/' CasioEmuMsvc/CrashHandler/CrashHandler.cpp || true
-          echo -e "\n#endif" >> CasioEmuMsvc/CrashHandler/CrashHandler.cpp
+          sed -i '/CrashHandler/d' CasioEmuMsvc/CMakeLists.txt
 
       - name: Remove local.properties
         run: rm -f local.properties
