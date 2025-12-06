@@ -1,0 +1,57 @@
+name: Build CasioEmuMsvc Android (upstream)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Lấy code trực tiếp từ repo gốc
+      - name: Checkout upstream CasioEmuMsvc
+        uses: actions/checkout@v4
+        with:
+          repository: telecomadm1145/CasioEmuMsvc
+          ref: stable
+          submodules: recursive
+
+      # 2. Sửa code UI cho Android (giảm scale từ 3.0f xuống 1.0f)
+      - name: Patch Android UI scaling
+        run: |
+          echo "Patch defaultscale & ScaleAllSizes trong CasioEmuMsvc/Gui/Gui.h"
+          sed -i 's/constexpr float defaultscale = 3.0f;/constexpr float defaultscale = 1.0f;/g' CasioEmuMsvc/Gui/Gui.h || true
+          sed -i 's/style.ScaleAllSizes(3.0f);/style.ScaleAllSizes(1.0f);/g' CasioEmuMsvc/Gui/Gui.h || true
+          echo "Nội dung sau khi patch (vài dòng đầu có defaultscale):"
+          grep -n "defaultscale" -n CasioEmuMsvc/Gui/Gui.h || true
+          grep -n "ScaleAllSizes" -n CasioEmuMsvc/Gui/Gui.h || true
+
+      # 3. Xoá local.properties của tác giả (tránh lỗi sdk.dir không tồn tại)
+      - name: Remove local.properties
+        run: rm -f local.properties
+
+      # 4. Cài JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 5. Cài Android SDK + công cụ cần thiết
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 6. Cho phép gradlew chạy
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # 7. Build release APK
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease
+
+      # 8. Upload file APK để tải về
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: casio-emu-android-release
+          path: app/build/outputs/apk/release/*.apk
