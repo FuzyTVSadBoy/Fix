@@ -1,0 +1,37 @@
+name: Build APK from ZIP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip source
+        run: |
+          echo "Unzipping source..."
+          unzip *.zip -d srcdir
+          ls -R srcdir
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Grant gradlew permission
+        run: chmod +x srcdir/**/gradlew
+
+      - name: Build APK
+        working-directory: srcdir/**/
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: srcdir/**/app/build/outputs/apk/release/*.apk
