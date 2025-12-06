@@ -1,4 +1,4 @@
-name: Build APK from ZIP
+name: Android APK Build
 
 on:
   workflow_dispatch:
@@ -13,25 +13,24 @@ jobs:
 
       - name: Unzip source
         run: |
-          echo "Unzipping source..."
-          unzip *.zip -d srcdir
+          unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
           ls -R srcdir
 
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Grant gradlew permission
-        run: chmod +x srcdir/**/gradlew
+        run: chmod +x srcdir/CasioEmuMsvc-stable-20251203170327-a003f41/gradlew
 
-      - name: Build APK
-        working-directory: srcdir/**/
+      - name: Build APK (release)
+        working-directory: srcdir/CasioEmuMsvc-stable-20251203170327-a003f41
         run: ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk
-          path: srcdir/**/app/build/outputs/apk/release/*.apk
+          name: app-release
+          path: srcdir/CasioEmuMsvc-stable-20251203170327-a003f41/app/build/outputs/apk/release/*.apk
