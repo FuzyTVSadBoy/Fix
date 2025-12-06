@@ -1,6 +1,7 @@
 name: Android APK Build
 
 on:
+  # Cho phép bạn tự bấm "Run workflow" trong tab Actions
   workflow_dispatch:
 
 jobs:
@@ -11,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -19,11 +20,11 @@ jobs:
 
       - name: Unzip, fetch deps and build
         run: |
-          # Giải nén project
+          # Giải nén project vào thư mục srcdir
           unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
 
-          # Vào thư mục project gốc
-          cd srcdir/CasioEmuMsvc-stable-20251203170327-a003f41
+          # Vào thư mục nguồn (ZIP của bạn bung thẳng vào srcdir)
+          cd srcdir
 
           echo "== Clone SDL, SDL_image, cpu_features =="
           git clone --depth 1 https://github.com/libsdl-org/SDL.git SDL
@@ -36,8 +37,9 @@ jobs:
           echo "== Build APK =="
           chmod +x gradlew
           ./gradlew assembleRelease
-      - name: Upload APK
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: srcdir/**/app/build/outputs/apk/release/*.apk
+          path: srcdir/app/build/outputs/apk/release/*.apk
