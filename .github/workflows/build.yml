@@ -17,35 +17,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Unzip and build
+      - name: Unzip, fetch deps and build
         run: |
           # Giải nén project
           unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
-          cd srcdir
 
-          # Tìm gradlew
-          GRADLEW_PATH=$(find . -name "gradlew" -print | head -n 1)
-          echo "Found gradlew at: $GRADLEW_PATH"
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "gradlew not found after unzip!"
-            exit 1
-          fi
+          # Vào thư mục project gốc
+          cd srcdir/CasioEmuMsvc-stable-20251203170327-a003f41
 
-          GRADLEW_DIR=$(dirname "$GRADLEW_PATH")
-          cd "$GRADLEW_DIR"
+          echo "== Clone SDL, SDL_image, cpu_features =="
+          git clone --depth 1 https://github.com/libsdl-org/SDL.git SDL
+          git clone --depth 1 https://github.com/libsdl-org/SDL_image.git SDL_image
+          git clone --depth 1 https://github.com/google/cpu_features.git cpu_features
 
-          echo "== Trước khi xoá local.properties =="
-          find .. -name "local.properties" -print || true
+          echo "== Xoá local.properties nếu có =="
+          find . -name "local.properties" -delete
 
-          # Xoá mọi file local.properties có đường dẫn SDK của máy Windows
-          find .. -name "local.properties" -delete
-
-          echo "== Sau khi xoá local.properties =="
-          find .. -name "local.properties" -print || true
-
+          echo "== Build APK =="
           chmod +x gradlew
           ./gradlew assembleRelease
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
