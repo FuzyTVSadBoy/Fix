@@ -17,24 +17,31 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Unzip and build
+       - name: Unzip and build
         run: |
-          # Giải nén ZIP vào thư mục srcdir
+          # Giải nén project
           unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
           cd srcdir
 
-          # Tìm file gradlew đầu tiên
+          # Tìm gradlew
           GRADLEW_PATH=$(find . -name "gradlew" -print | head -n 1)
           echo "Found gradlew at: $GRADLEW_PATH"
-
           if [ -z "$GRADLEW_PATH" ]; then
             echo "gradlew not found after unzip!"
             exit 1
           fi
 
-          # Vào thư mục chứa gradlew
           GRADLEW_DIR=$(dirname "$GRADLEW_PATH")
           cd "$GRADLEW_DIR"
+
+          echo "== Trước khi xoá local.properties =="
+          find .. -name "local.properties" -print || true
+
+          # Xoá mọi file local.properties có đường dẫn SDK của máy Windows
+          find .. -name "local.properties" -delete
+
+          echo "== Sau khi xoá local.properties =="
+          find .. -name "local.properties" -print || true
 
           chmod +x gradlew
           ./gradlew assembleRelease
