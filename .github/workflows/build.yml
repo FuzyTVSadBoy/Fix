@@ -11,26 +11,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unzip source
-        run: |
-          unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
-          ls -R srcdir
-
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant gradlew permission
-        run: chmod +x srcdir/CasioEmuMsvc-stable-20251203170327-a003f41/gradlew
+      - name: Unzip and build
+        run: |
+          # Giải nén ZIP vào thư mục srcdir
+          unzip CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
+          cd srcdir
 
-      - name: Build APK (release)
-        working-directory: srcdir/CasioEmuMsvc-stable-20251203170327-a003f41
-        run: ./gradlew assembleRelease
+          # Tìm file gradlew đầu tiên
+          GRADLEW_PATH=$(find . -name "gradlew" -print | head -n 1)
+          echo "Found gradlew at: $GRADLEW_PATH"
+
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "gradlew not found after unzip!"
+            exit 1
+          fi
+
+          # Vào thư mục chứa gradlew
+          GRADLEW_DIR=$(dirname "$GRADLEW_PATH")
+          cd "$GRADLEW_DIR"
+
+          chmod +x gradlew
+          ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: srcdir/CasioEmuMsvc-stable-20251203170327-a003f41/app/build/outputs/apk/release/*.apk
+          path: srcdir/**/app/build/outputs/apk/release/*.apk
