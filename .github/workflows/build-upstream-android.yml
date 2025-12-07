@@ -20,15 +20,16 @@ jobs:
       - name: Patch sources for Android
         run: |
           echo "==> Remove CrashHandler from CMake"
-          sed -i '/MAIN_SOURCES_CRASH/d' CasioEmuMsvc/CMakeLists.txt
+          sed -i '/CrashHandler/d' CasioEmuMsvc/CMakeLists.txt
 
-          echo "==> Shrink ImGui default scale on Android (3.0f -> 1.0f)"
-          FILE_WITH_SCALE=$(grep -R "constexpr float defaultscale = 3.0f;" -n || true | head -n1 | cut -d: -f1)
+          echo "==> Find and patch defaultscale = 3.0f"
+          FILE_WITH_SCALE=$(grep -RIl "defaultscale = 3.0f" CasioEmuMsvc || true)
+          echo "Found file: $FILE_WITH_SCALE"
+
           if [ -n "$FILE_WITH_SCALE" ]; then
-            echo "Patch file: $FILE_WITH_SCALE"
-            sed -i 's/constexpr float defaultscale = 3.0f;/constexpr float defaultscale = 1.0f;/' "$FILE_WITH_SCALE"
+            sed -i 's/defaultscale = 3.0f;/defaultscale = 1.0f;/' "$FILE_WITH_SCALE"
           else
-            echo "WARNING: Không tìm thấy dòng defaultscale = 3.0f; – bỏ qua bước này."
+            echo "WARNING: defaultscale not found — skipping UI scale patch."
           fi
 
       # 3) Cài JDK
