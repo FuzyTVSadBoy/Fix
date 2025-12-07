@@ -1,4 +1,4 @@
-name: Build CasioEmuMsvc Android (upstream)
+name: build-android
 
 on:
   workflow_dispatch:
@@ -8,47 +8,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout upstream CasioEmuMsvc
+      # 1) Lấy source gốc CasioEmuMsvc (nhánh stable)
+      - name: Checkout CasioEmuMsvc stable
         uses: actions/checkout@v4
         with:
           repository: telecomadm1145/CasioEmuMsvc
           ref: stable
           submodules: recursive
 
-      # Patch UI scale
-      - name: Patch Android UI scaling
+      # 2) Patch cho Android: bỏ CrashHandler, chỉnh scale UI
+      - name: Patch sources for Android
         run: |
-          sed -i 's/constexpr float defaultscale = 3.0f;/constexpr float defaultscale = 1.0f;/g' CasioEmuMsvc/Gui/Gui.h || true
-          sed -i 's/style.ScaleAllSizes(3.0f);/style.ScaleAllSizes(1.0f);/g' CasioEmuMsvc/Gui/Gui.h || true
+          echo "==> Remove CrashHandler from CMake"
+          sed -i '/MAIN_SOURCES_CRASH/d' CasioEmuMsvc/CMakeLists.txt
 
-      # PATCH lỗi CrashHandler
-      - name: Remove CrashHandler (Android fix)
-        run: rm -rf CasioEmuMsvc/CrashHandler
+          echo "==> Shrink ImGui default scale on Android (3.0f -> 1.0f)"
+          FILE_WITH_SCALE=$(grep -R "constexpr float defaultscale = 3.0f;" -n || true | head -n1 | cut -d: -f1)
+          if [ -n "$FILE_WITH_SCALE" ]; then
+            echo "Patch file: $FILE_WITH_SCALE"
+            sed -i 's/constexpr float defaultscale = 3.0f;/constexpr float defaultscale = 1.0f;/' "$FILE_WITH_SCALE"
+          else
+            echo "WARNING: Không tìm thấy dòng defaultscale = 3.0f; – bỏ qua bước này."
+          fi
 
-      - name: Patch CMakeLists to remove CrashHandler
-        run: |
-          sed -i '/CrashHandler/d' CasioEmuMsvc/CMakeLists.txt
-
-      - name: Remove local.properties
-        run: rm -f local.properties
-
+      # 3) Cài JDK
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Make gradlew executable
+      # 4) Cấp quyền cho gradlew
+      - name: Grant gradlew permission
         run: chmod +x gradlew
 
+      # 5) Build APK bản release
       - name: Build release APK
-        run: ./gradlew :app:assembleRelease
+        run: ./gradlew assembleRelease
 
+      # 6) Upload file APK
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: casio-emu-android-release
+          name: casio-emu-release
           path: app/build/outputs/apk/release/*.apk
