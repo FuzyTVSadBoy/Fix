@@ -1,4 +1,4 @@
-name: build-android
+name: build-from-zip
 
 on:
   workflow_dispatch:
@@ -8,48 +8,69 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Lấy source gốc CasioEmuMsvc (nhánh stable)
-      - name: Checkout CasioEmuMsvc stable
+      # 1) Checkout repo của bạn (chứa file ZIP)
+      - name: Checkout this repo
         uses: actions/checkout@v4
-        with:
-          repository: telecomadm1145/CasioEmuMsvc
-          ref: stable
-          submodules: recursive
 
-      # 2) Patch cho Android: bỏ CrashHandler, chỉnh scale UI
-      - name: Patch sources for Android
+      # 2) Giải nén source vào thư mục srcdir
+      - name: Unzip source archive
         run: |
-          echo "==> Remove CrashHandler from CMake"
-          sed -i '/CrashHandler/d' CasioEmuMsvc/CMakeLists.txt
+          mkdir -p srcdir
+          unzip -q CasioEmuMsvc-stable-20251203170327-a003f41.zip -d srcdir
+          echo "==== srcdir contents ===="
+          ls -R srcdir
 
-          echo "==> Find and patch defaultscale = 3.0f"
-          FILE_WITH_SCALE=$(grep -RIl "defaultscale = 3.0f" CasioEmuMsvc || true)
-          echo "Found file: $FILE_WITH_SCALE"
+      # 3) Tự động tìm thư mục project (tên bắt đầu bằng CasioEmuMsvc)
+      - name: Detect project directory
+        id: proj
+        run: |
+          PROJECT_DIR=$(find srcdir -maxdepth 2 -type d -name "CasioEmuMsvc*" | head -n1)
+          echo "Project dir: $PROJECT_DIR"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Không tìm thấy thư mục CasioEmuMsvc trong srcdir" >&2
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_OUTPUT
 
+      # 4) Patch cho Android (tuỳ chọn, nếu tìm thấy thì sửa)
+      - name: Patch project for Android
+        run: |
+          cd "${{ steps.proj.outputs.PROJECT_DIR }}"
+
+          echo "==> Remove CrashHandler from CMake (nếu có)"
+          sed -i '/CrashHandler/d' CMakeLists.txt || true
+
+          echo "==> Shrink UI scale (3.0f -> 1.0f nếu có)"
+          FILE_WITH_SCALE=$(grep -RIl "defaultscale = 3.0f" . || true)
+          echo "FILE_WITH_SCALE: $FILE_WITH_SCALE"
           if [ -n "$FILE_WITH_SCALE" ]; then
             sed -i 's/defaultscale = 3.0f;/defaultscale = 1.0f;/' "$FILE_WITH_SCALE"
           else
-            echo "WARNING: defaultscale not found — skipping UI scale patch."
+            echo "Không tìm thấy defaultscale = 3.0f, bỏ qua."
           fi
 
-      # 3) Cài JDK
+      # 5) Cài JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 4) Cấp quyền cho gradlew
-      - name: Grant gradlew permission
-        run: chmod +x gradlew
+      # 6) Cho gradlew quyền chạy
+      - name: Make gradlew executable
+        run: |
+          cd "${{ steps.proj.outputs.PROJECT_DIR }}"
+          chmod +x gradlew
 
-      # 5) Build APK bản release
+      # 7) Build APK
       - name: Build release APK
-        run: ./gradlew assembleRelease
+        run: |
+          cd "${{ steps.proj.outputs.PROJECT_DIR }}"
+          ./gradlew assembleRelease
 
-      # 6) Upload file APK
+      # 8) Upload APK
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: casio-emu-release
-          path: app/build/outputs/apk/release/*.apk
+          name: app-release
+          path: ${{ steps.proj.outputs.PROJECT_DIR }}/app/build/outputs/apk/release/*.apk
