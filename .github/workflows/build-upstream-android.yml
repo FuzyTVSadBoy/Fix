@@ -1,6 +1,8 @@
-name: Android build from ZIP
+name: Build NX-U8 Android
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -8,58 +10,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Lấy code repo của BẠN (trong đó có file CasioEmuAndroid-fixed.zip)
-      - name: Checkout repo
+      # Lấy code repo Fix (chỉ để chứa workflow, không có source chính)
+      - name: Checkout this repo
         uses: actions/checkout@v4
 
-      # 2) Giải nén source Android từ file ZIP (đã sửa abiFilters)
-      - name: Unzip Android source
+      # Tải source NX-U8 từ release SourceTest và giải nén
+      - name: Download and unzip source from release
         run: |
           mkdir -p src
-          unzip -q CasioEmuAndroid-fixed.zip -d src
-          echo "===== SRC CONTENTS ====="
-          ls -R src
+          # Tải file Casio.zip trong release SourceTest
+          curl -L \
+            -o src/nxu8.zip \
+            "https://github.com/FuzyTVSadBoy/Fix/releases/download/SourceTest/Casio.zip"
 
-      # 3) Tìm thư mục project (nơi có settings.gradle)
-      - name: Detect project dir
-        id: proj
+          # Giải nén vào thư mục src
+          unzip -q src/nxu8.zip -d src
+
+      # Tự động tìm thư mục có gradlew (gốc project Android)
+      - name: Detect Android project directory
+        id: detect
         run: |
-          PROJECT_DIR=$(find src -maxdepth 3 -type f -name "settings.gradle" -print | head -n1 | xargs dirname)
-          echo "Detected project dir: $PROJECT_DIR"
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "Không tìm thấy settings.gradle trong src" >&2
+          set -e
+          ROOT=$(find src -maxdepth 4 -type f -name "gradlew" | head -n 1)
+          if [ -z "$ROOT" ]; then
+            echo "Không tìm được gradlew trong src/" >&2
             exit 1
           fi
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          DIR=$(dirname "$ROOT")
+          echo "project_dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "Project dir: $DIR"
 
-      # 4) Xoá local.properties để tránh sdk.dir trỏ sai máy
-      - name: Remove local.properties
+      # Tăng độ tương thích: hạ minSdk và thêm ABI 32-bit
+      - name: Patch app/build.gradle for compatibility
         run: |
-          if [ -f "${{ steps.proj.outputs.PROJECT_DIR }}/local.properties" ]; then
-            rm "${{ steps.proj.outputs.PROJECT_DIR }}/local.properties"
-          fi
+          set -e
+          APP_GRADLE="${{ steps.detect.outputs.project_dir }}/app/build.gradle"
+          echo "Patching $APP_GRADLE"
 
-      # 5) Cài JDK giống repo gốc dùng Gradle
+          # 1) Hạ minSdkVersion 24 -> 21 (nhiều máy Android cũ hơn cài được)
+          sed -i 's/minSdkVersion 24/minSdkVersion 21/' "$APP_GRADLE"
+
+          # 2) Thêm ABI armeabi-v7a (32-bit) bên cạnh arm64-v8a
+          sed -i "s/abiFilters 'arm64-v8a'/abiFilters 'armeabi-v7a', 'arm64-v8a'/" "$APP_GRADLE"
+
+          echo "==== app/build.gradle (đầu file) sau khi patch ===="
+          sed -n '1,80p' "$APP_GRADLE"
+
+      # Cài JDK 17 cho Gradle
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # 6) Cài Android SDK (giống style workflow repo gốc)
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # Cho phép chạy gradlew
+      - name: Make gradlew executable
+        working-directory: ${{ steps.detect.outputs.project_dir }}
+        run: chmod +x gradlew
 
-      # 7) Build APK release bằng gradlew trong project
+      # Build APK bản release
       - name: Build release APK
-        run: |
-          cd "${{ steps.proj.outputs.PROJECT_DIR }}"
-          chmod +x gradlew
-          ./gradlew assembleRelease
+        working-directory: ${{ steps.detect.outputs.project_dir }}
+        run: ./gradlew assembleRelease
 
-      # 8) Upload file APK để tải về
+      # Upload file APK sau khi build xong
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: ${{ steps.proj.outputs.PROJECT_DIR }}/app/build/outputs/apk/release/*.apk
+          name: nxu8-release
+          path: ${{ steps.detect.outputs.project_dir }}/app/build/outputs/apk/release/*.apk
